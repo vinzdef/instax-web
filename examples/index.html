@@ -71,7 +71,14 @@
         font-size: 0.9rem;
         word-break: break-all;
       }
-      input[type='number'],
+      input[type='color'] {
+        width: 3rem;
+        height: 2.2rem;
+        padding: 0;
+        border-radius: 0.4rem;
+        border: 1px solid currentColor;
+        background: none;
+      }
       select {
         font: inherit;
         padding: 0.35rem 0.5rem;
@@ -118,6 +125,12 @@
         <div><dt>Model</dt><dd id="info-model">—</dd></div>
         <div><dt>Serial</dt><dd id="info-serial">—</dd></div>
       </dl>
+      <div class="row">
+        <label for="led">LED</label>
+        <input id="led" type="color" value="#ff0055" disabled />
+        <button id="led-apply" disabled>Set</button>
+        <button id="led-pulse" disabled title="Cycles three colours to check the animation fields">Pulse</button>
+      </div>
       <div class="row">
         <label for="orientation">Orientation</label>
         <select id="orientation">

@@ -19,6 +19,11 @@ const infoSize = el<HTMLElement>('info-size')
 const infoModel = el<HTMLElement>('info-model')
 const infoSerial = el<HTMLElement>('info-serial')
 const orientationSelect = el<HTMLSelectElement>('orientation')
+const ledInput = el<HTMLInputElement>('led')
+const ledApplyButton = el<HTMLButtonElement>('led-apply')
+const ledPulseButton = el<HTMLButtonElement>('led-pulse')
+
+const ledControls = [ledInput, ledApplyButton, ledPulseButton]
 
 let printer: InstaxPrinter | null = null
 let variant: FilmVariant = 'mini'
@@ -71,6 +76,7 @@ connectButton.addEventListener('click', async () => {
       connectButton.textContent = 'Connect printer'
       printButton.disabled = true
       ejectButton.disabled = true
+      for (const control of ledControls) control.disabled = true
     })
 
     const status = await printer.getStatus()
@@ -135,6 +141,27 @@ printButton.addEventListener('click', async () => {
 })
 
 cancelButton.addEventListener('click', () => controller?.abort())
+
+ledApplyButton.addEventListener('click', async () => {
+  await withLedErrors(() => printer!.setLed(ledInput.value))
+})
+
+ledPulseButton.addEventListener('click', async () => {
+  // Three colours on repeat exercises the count, speed and repeat fields.
+  await withLedErrors(() =>
+    printer!.setLed([ledInput.value, '#000000', ledInput.value], { speed: 5, repeat: 10 }),
+  )
+})
+
+async function withLedErrors(action: () => Promise<void>) {
+  if (!printer?.connected) return
+  try {
+    await action()
+    log(`led ${ledInput.value}`)
+  } catch (error) {
+    log(`led failed: ${String(error)}`)
+  }
+}
 
 ejectButton.addEventListener('click', async () => {
   if (!printer) return
