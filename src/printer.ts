@@ -71,6 +71,13 @@ export interface InstaxPrinterOptions extends BleTransportOptions {
    * @default 15000
    */
   ejectDelay?: number
+  /**
+   * Pause between finishing an upload and asking for a print, in ms. The
+   * printer needs a moment to commit the image and refuses PRINT_IMAGE until
+   * it has.
+   * @default 500
+   */
+  settleDelay?: number
 }
 
 export interface PrintOptions {
@@ -105,6 +112,7 @@ export class InstaxPrinter extends Emitter<InstaxPrinterEvents> {
   readonly #fragmentSize: number
   readonly #baseFragmentDelay: number
   readonly #ejectDelay: number
+  readonly #settleDelay: number
   readonly #log: Logger
 
   #film: FilmVariant | null = null
@@ -116,6 +124,7 @@ export class InstaxPrinter extends Emitter<InstaxPrinterEvents> {
     this.#fragmentSize = options.fragmentSize ?? DEFAULT_FRAGMENT_SIZE
     this.#baseFragmentDelay = options.fragmentDelay ?? 15
     this.#ejectDelay = options.ejectDelay ?? 15000
+    this.#settleDelay = options.settleDelay ?? 500
 
     this.#transport.onDisconnect = () => {
       this.#film = null
@@ -324,6 +333,10 @@ export class InstaxPrinter extends Emitter<InstaxPrinterEvents> {
   }
 
   async #triggerPrints(copies: number, options: Omit<PrintOptions, 'copies' | 'variant'>): Promise<void> {
+    // The printer refuses PRINT_IMAGE until it has committed the uploaded
+    // image; give it a moment before asking.
+    if (this.#settleDelay > 0) await sleep(this.#settleDelay, options.signal)
+
     for (let copy = 1; copy <= copies; copy++) {
       throwIfAborted(options.signal)
 
