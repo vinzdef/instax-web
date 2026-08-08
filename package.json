@@ -1,0 +1,64 @@
+{
+  "name": "instax-web",
+  "version": "0.1.0",
+  "description": "Print to a Fujifilm INSTAX Link printer from the browser over Web Bluetooth.",
+  "keywords": [
+    "instax",
+    "fujifilm",
+    "polaroid",
+    "printer",
+    "web-bluetooth",
+    "bluetooth",
+    "ble",
+    "browser"
+  ],
+  "license": "MIT",
+  "author": "vinzdef",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/vinzdef/instax-web.git"
+  },
+  "bugs": "https://github.com/vinzdef/instax-web/issues",
+  "homepage": "https://github.com/vinzdef/instax-web#readme",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "example": "vite examples --port 5174",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "@types/web-bluetooth": "^0.0.21",
+    "@vitest/coverage-v8": "^3.2.4",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.5",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
