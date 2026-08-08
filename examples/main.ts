@@ -18,6 +18,8 @@ const infoBattery = el<HTMLElement>('info-battery')
 const infoSize = el<HTMLElement>('info-size')
 const infoModel = el<HTMLElement>('info-model')
 const infoSerial = el<HTMLElement>('info-serial')
+const settleInput = el<HTMLInputElement>('settle')
+const orientationSelect = el<HTMLSelectElement>('orientation')
 
 let printer: InstaxPrinter | null = null
 let variant: FilmVariant = 'mini'
@@ -41,7 +43,10 @@ connectButton.addEventListener('click', async () => {
 
   connectButton.disabled = true
   try {
-    printer = await InstaxPrinter.request({ logger: (direction, message) => log(`${direction} ${message}`) })
+    printer = await InstaxPrinter.request({
+      settleDelay: Number(settleInput.value) || 0,
+      logger: (direction, message) => log(`${direction} ${message}`),
+    })
 
     printer.on('status', (status) => {
       infoPanel.hidden = false
@@ -84,13 +89,15 @@ connectButton.addEventListener('click', async () => {
 })
 
 fileInput.addEventListener('change', render)
+orientationSelect.addEventListener('change', render)
 
 async function render() {
   const file = fileInput.files?.[0]
   if (!file) return
 
   const spec = filmSpec(variant)
-  jpeg = await prepareImage(file, { variant, fit: 'cover' })
+  const rotate = orientationSelect.value === 'landscape' ? 90 : 0
+  jpeg = await prepareImage(file, { variant, fit: 'cover', rotate })
   log(`prepared ${spec.width}x${spec.height} at ${(jpeg.byteLength / 1024).toFixed(1)} KB`)
 
   // Show exactly what will be sent, decoded back from the JPEG bytes.
