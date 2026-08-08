@@ -8,6 +8,12 @@ Supports mini, square, and wide film.
 npm install instax-web
 ```
 
+## Credits
+
+Extracted and rewritten from [linssenste/instax-link-web](https://github.com/linssenste/instax-link-web) (MIT). The protocol itself was reverse-engineered by Jasper van Loenen in [javl/InstaxBLE](https://github.com/javl/InstaxBLE).
+
+Not affiliated with or endorsed by Fujifilm. INSTAX is a trademark of Fujifilm.
+
 ## Usage
 
 ```ts
@@ -98,12 +104,6 @@ npm run typecheck
 npm run build
 npm run example   # demo app at localhost:5174, needs a real printer
 ```
-
-## Credits
-
-Extracted and rewritten from [linssenste/instax-link-web](https://github.com/linssenste/instax-link-web) (MIT). The protocol itself was reverse-engineered by Jasper van Loenen in [javl/InstaxBLE](https://github.com/javl/InstaxBLE).
-
-Not affiliated with or endorsed by Fujifilm. INSTAX is a trademark of Fujifilm.
 
 ## License
 
