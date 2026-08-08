@@ -2,6 +2,9 @@ import { Opcode } from '../src/opcodes.js'
 import { decodePacket, type ResponsePacket } from '../src/protocol.js'
 import type { Transport } from '../src/transport.js'
 
+/** Status an FI033 returns for a sub-command it does not implement. */
+const UNSUPPORTED_STATUS = 0x81
+
 /** Builds a printer→host packet the way the firmware does. */
 export function buildResponse(
   opcode: number,
@@ -35,6 +38,8 @@ export interface FakePrinterOptions {
   shotsRemaining?: number
   /** Fail the Nth (0-based) acknowledged write with a non-zero status. */
   failDownloadStartTimes?: number
+  /** Refuse this SUPPORT_FUNCTION_INFO sub-command with 0x81, as hardware does. */
+  refuseSupportInfo?: number
   /** Never answer; used to exercise timeouts. */
   silent?: boolean
 }
@@ -58,11 +63,15 @@ export class FakePrinter implements Transport {
 
   #buffer: number[] = []
   #downloadStartFailures: number
-  readonly #options: Required<Omit<FakePrinterOptions, 'failDownloadStartTimes' | 'silent'>> &
+  readonly #refuseSupportInfo: number | null
+  readonly #options: Required<
+    Omit<FakePrinterOptions, 'failDownloadStartTimes' | 'silent' | 'refuseSupportInfo'>
+  > &
     Pick<FakePrinterOptions, 'silent'>
 
   constructor(options: FakePrinterOptions = {}) {
     this.#downloadStartFailures = options.failDownloadStartTimes ?? 0
+    this.#refuseSupportInfo = options.refuseSupportInfo ?? null
     this.#options = {
       width: options.width ?? 600,
       height: options.height ?? 800,
@@ -110,7 +119,11 @@ export class FakePrinter implements Transport {
 
       case Opcode.DEVICE_INFO_SERVICE: {
         const text = ['FUJIFILM', 'mini-link', 'SN-0001'][command] ?? ''
-        return buildResponse(opcode, command, Array.from(text, (char) => char.charCodeAt(0)))
+        // Real hardware prefixes the string with its length.
+        return buildResponse(opcode, command, [
+          text.length,
+          ...Array.from(text, (char) => char.charCodeAt(0)),
+        ])
       }
 
       case Opcode.PRINT_IMAGE_DOWNLOAD_START: {
@@ -138,6 +151,9 @@ export class FakePrinter implements Transport {
 
   #supportFunctionInfo(command: number): Uint8Array {
     const { width, height, battery, charging, shotsRemaining } = this.#options
+    if (command === this.#refuseSupportInfo) {
+      return buildResponse(Opcode.SUPPORT_FUNCTION_INFO, command, [], UNSUPPORTED_STATUS)
+    }
     switch (command) {
       case 0:
         return buildResponse(Opcode.SUPPORT_FUNCTION_INFO, 0, [
@@ -153,7 +169,7 @@ export class FakePrinter implements Transport {
       case 2:
         return buildResponse(Opcode.SUPPORT_FUNCTION_INFO, 2, [shotsRemaining])
       default:
-        return buildResponse(Opcode.SUPPORT_FUNCTION_INFO, command)
+        return buildResponse(Opcode.SUPPORT_FUNCTION_INFO, command, [], UNSUPPORTED_STATUS)
     }
   }
 }

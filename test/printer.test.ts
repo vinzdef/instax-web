@@ -92,6 +92,13 @@ describe('getStatus', () => {
     await printer.getStatus()
     expect(listener).toHaveBeenCalledWith(expect.objectContaining({ film: 'mini' }))
   })
+
+  it('throws on a refused read rather than reporting an empty cartridge', async () => {
+    // The parsers read a missing byte as 0, so an unchecked refusal would look
+    // like a flat battery and no film left.
+    const printer = await connected(new FakePrinter({ refuseSupportInfo: 2 }))
+    await expect(printer.getStatus()).rejects.toThrow(/refused with status 0x81/)
+  })
 })
 
 describe('getIdentity', () => {

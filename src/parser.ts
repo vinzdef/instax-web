@@ -62,8 +62,10 @@ export function parseFilmCount(packet: ResponsePacket): FilmCountInfo {
 }
 
 export function parseDeviceInfo(packet: ResponsePacket): DeviceIdentity {
-  // 0x08 is used as padding inside these ASCII fields.
-  const text = String.fromCharCode(...Array.from(packet.payload).filter((code) => code !== 0x08))
+  // A length byte, then that many ASCII characters. Anything past them is
+  // trailing junk the printer leaves in the buffer.
+  const length = u8(packet.payload, 0)
+  const text = String.fromCharCode(...Array.from(packet.payload.subarray(1, 1 + length)))
   switch (packet.command) {
     case 0:
       return { company: text }

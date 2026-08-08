@@ -45,18 +45,29 @@ describe('parseFilmCount', () => {
   })
 })
 
+const ascii = (text: string) => [...text].map((char) => char.charCodeAt(0))
+
 describe('parseDeviceInfo', () => {
-  it('decodes ASCII and drops padding bytes', () => {
-    const bytes = [...'FUJIFILM'].map((char) => char.charCodeAt(0))
-    expect(parseDeviceInfo(response(0x0001, 0, [...bytes, 0x08, 0x08]))).toEqual({
+  it('reads the leading length byte rather than the whole payload', () => {
+    // Captured from an FI033: a count of 5 that an earlier decoder kept as a
+    // control character on the front of the string.
+    expect(parseDeviceInfo(response(0x0001, 1, [5, ...ascii('FI033')]))).toEqual({
+      printerTypeId: 'FI033',
+    })
+  })
+
+  it('ignores bytes past the declared length', () => {
+    expect(parseDeviceInfo(response(0x0001, 0, [8, ...ascii('FUJIFILM'), 0x08, 0x08]))).toEqual({
       company: 'FUJIFILM',
     })
   })
 
   it('maps each sub-command to its own field', () => {
-    expect(parseDeviceInfo(response(0x0001, 1, [0x41]))).toEqual({ printerTypeId: 'A' })
-    expect(parseDeviceInfo(response(0x0001, 2, [0x41]))).toEqual({ serialNumber: 'A' })
-    expect(parseDeviceInfo(response(0x0001, 9, [0x41]))).toEqual({})
+    expect(parseDeviceInfo(response(0x0001, 0, [1, 0x41]))).toEqual({ company: 'A' })
+    expect(parseDeviceInfo(response(0x0001, 2, [8, ...ascii('70535674')]))).toEqual({
+      serialNumber: '70535674',
+    })
+    expect(parseDeviceInfo(response(0x0001, 9, [1, 0x41]))).toEqual({})
   })
 })
 

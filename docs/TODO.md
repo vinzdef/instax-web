@@ -24,6 +24,11 @@ Two steps, independent:
    Needs a matching capture from a fresh pack *before* ejecting, then diff.
    Shot count alone cannot work: a fresh pack reads 10 either way.
 
+   2026-08-08: a pack loaded on the mini Link ejected its cover automatically,
+   with no `REJECT_FILM_COVER` sent — so the un-ejected state is not guaranteed
+   on a fresh pack, and `0xb2` may be conditional. The pre-eject capture is
+   still owed, and now depends on catching a pack that does not auto-eject.
+
 ## Probe the unmodelled read opcodes
 
 Read-only, cannot waste film. Send with an empty payload and dump via

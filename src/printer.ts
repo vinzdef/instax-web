@@ -162,15 +162,9 @@ export class InstaxPrinter extends Emitter<InstaxPrinterEvents> {
 
   /** Battery, film count, and loaded film size. */
   async getStatus(): Promise<PrinterStatus> {
-    const specs = parseImageSpecs(
-      await this.#command(Opcode.SUPPORT_FUNCTION_INFO, [SupportFunction.IMAGE_SPECS]),
-    )
-    const battery = parseBattery(
-      await this.#command(Opcode.SUPPORT_FUNCTION_INFO, [SupportFunction.BATTERY]),
-    )
-    const film = parseFilmCount(
-      await this.#command(Opcode.SUPPORT_FUNCTION_INFO, [SupportFunction.FILM_COUNT]),
-    )
+    const specs = parseImageSpecs(await this.#supportInfo(SupportFunction.IMAGE_SPECS))
+    const battery = parseBattery(await this.#supportInfo(SupportFunction.BATTERY))
+    const film = parseFilmCount(await this.#supportInfo(SupportFunction.FILM_COUNT))
 
     this.#film = filmVariantForSize(specs.width, specs.height)
 
@@ -188,7 +182,9 @@ export class InstaxPrinter extends Emitter<InstaxPrinterEvents> {
   async getIdentity(): Promise<DeviceIdentity> {
     const identity: DeviceIdentity = {}
     for (const command of [0, 1, 2]) {
-      Object.assign(identity, parseDeviceInfo(await this.#command(Opcode.DEVICE_INFO_SERVICE, [command])))
+      const packet = await this.#command(Opcode.DEVICE_INFO_SERVICE, [command])
+      assertOk(packet)
+      Object.assign(identity, parseDeviceInfo(packet))
     }
     return identity
   }
@@ -359,6 +355,17 @@ export class InstaxPrinter extends Emitter<InstaxPrinterEvents> {
   #reportProgress(options: { onProgress?: (p: PrintProgress) => void }, progress: PrintProgress): void {
     options.onProgress?.(progress)
     this.emit('progress', progress)
+  }
+
+  /**
+   * A support-info read that is checked. The parsers read a missing byte as 0,
+   * so an unchecked refusal would decode into a plausible-looking status
+   * reporting a flat battery and an empty cartridge.
+   */
+  async #supportInfo(command: number): Promise<ResponsePacket> {
+    const packet = await this.#command(Opcode.SUPPORT_FUNCTION_INFO, [command])
+    assertOk(packet)
+    return packet
   }
 
   async #command(opcode: number, payload: number[], awaitAck = true): Promise<ResponsePacket> {
