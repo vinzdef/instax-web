@@ -211,6 +211,17 @@ export class InstaxPrinter extends Emitter<InstaxPrinterEvents> {
     await this.#command(Opcode.LED_PATTERN_SETTINGS, encodeLedPattern(list, options), false)
   }
 
+  /**
+   * Ejects the black cover sheet from a freshly loaded pack. The printer
+   * refuses to print until it is out.
+   *
+   * This physically ejects a sheet. If the cover is already out it burns a real
+   * shot, so never call it speculatively.
+   */
+  async ejectFilmCover(): Promise<void> {
+    assertOk(await this.#command(Opcode.REJECT_FILM_COVER, []))
+  }
+
   /** Powers the printer off. */
   async shutdown(): Promise<void> {
     await this.#command(Opcode.SHUT_DOWN, [], false)

@@ -287,3 +287,15 @@ describe('setLed', () => {
     expect(Array.from(command.payload)).toEqual([0, 1, 5, 255, 0x00, 0x00, 0xff])
   })
 })
+
+describe('ejectFilmCover', () => {
+  it('sends REJECT_FILM_COVER with an empty payload', async () => {
+    const fake = new FakePrinter()
+    const printer = await connected(fake)
+    await printer.ejectFilmCover()
+
+    const command = fake.commands.find((c) => c.opcode === Opcode.REJECT_FILM_COVER)
+    expect(command).toBeDefined()
+    expect(command!.payload).toHaveLength(0)
+  })
+})
