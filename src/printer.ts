@@ -366,7 +366,9 @@ function assertOk(packet: ResponsePacket): void {
   if (packet.status !== 0) {
     throw new InstaxError(
       'printer-error',
-      `${opcodeName(packet.opcode)} was refused with status ${packet.status}.`,
+      `${opcodeName(packet.opcode)} was refused with status 0x${packet.status
+        .toString(16)
+        .padStart(2, '0')}.`,
     )
   }
 }

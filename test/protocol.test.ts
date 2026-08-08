@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { InstaxError } from '../src/errors.js'
+import { Opcode } from '../src/opcodes.js'
 import { checksum, decodePacket, encodePacket, toHex, uint32be } from '../src/protocol.js'
 import { buildResponse } from './fake-printer.js'
 
@@ -61,6 +62,44 @@ describe('decodePacket', () => {
 
   it('rejects a runt packet', () => {
     expect(() => decodePacket(new Uint8Array([0x61, 0x42]))).toThrowError(/too short/)
+  })
+
+  // Captured from an INSTAX mini Link. Print opcodes answer with an 8-byte
+  // frame carrying only a status: no sub-command, no payload.
+  describe('bodyless responses from real hardware', () => {
+    it('accepts an 8-byte DOWNLOAD_START refusal and surfaces its status', () => {
+      const packet = decodePacket(
+        new Uint8Array([0x61, 0x42, 0x00, 0x08, 0x10, 0x00, 0x85, 0xbf]),
+      )
+      expect(packet).toEqual({
+        opcode: Opcode.PRINT_IMAGE_DOWNLOAD_START,
+        status: 0x85,
+        command: 0,
+        payload: new Uint8Array(),
+      })
+    })
+
+    it('accepts an 8-byte DOWNLOAD_CANCEL response', () => {
+      const packet = decodePacket(
+        new Uint8Array([0x61, 0x42, 0x00, 0x08, 0x10, 0x03, 0x85, 0xbc]),
+      )
+      expect(packet.opcode).toBe(Opcode.PRINT_IMAGE_DOWNLOAD_CANCEL)
+      expect(packet.status).toBe(0x85)
+    })
+
+    it('does not mistake the checksum for a sub-command', () => {
+      // Index 7 is the checksum here; reading it as the command would yield 0xbf.
+      const packet = decodePacket(
+        new Uint8Array([0x61, 0x42, 0x00, 0x08, 0x10, 0x00, 0x85, 0xbf]),
+      )
+      expect(packet.command).toBe(0)
+    })
+
+    it('still reads the sub-command when the body has one', () => {
+      const packet = decodePacket(buildResponse(Opcode.SUPPORT_FUNCTION_INFO, 2, [0x07]))
+      expect(packet.command).toBe(2)
+      expect(Array.from(packet.payload)).toEqual([0x07])
+    })
   })
 })
 

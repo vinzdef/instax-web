@@ -8,11 +8,21 @@ export const RESPONSE_MAGIC = [0x61, 0x42] as const // "aB"
 /** Bytes a packet spends on framing: 2 magic + 2 length + 2 opcode + 1 checksum. */
 export const FRAME_OVERHEAD = 7
 
+/**
+ * Bytes every response spends on framing: 2 magic + 2 length + 2 opcode +
+ * 1 status + 1 checksum. Anything past the status and before the checksum is
+ * the body.
+ */
+export const RESPONSE_OVERHEAD = 8
+
 export interface ResponsePacket {
   readonly opcode: number
   /** 0 means success; anything else is a printer-side refusal. */
   readonly status: number
-  /** Echoes the sub-command byte the request carried, where one applies. */
+  /**
+   * Echoes the sub-command byte the request carried. Only the info opcodes
+   * include one; print opcodes answer with an empty body, and this is 0.
+   */
   readonly command: number
   readonly payload: Uint8Array
 }
@@ -57,7 +67,7 @@ export function checksum(bytes: Uint8Array): number {
  * length, or checksum disagree with the bytes received.
  */
 export function decodePacket(bytes: Uint8Array): ResponsePacket {
-  if (bytes.length < FRAME_OVERHEAD + 2) {
+  if (bytes.length < RESPONSE_OVERHEAD) {
     throw new InstaxError('invalid-packet', `Response too short: ${bytes.length} bytes`)
   }
   if (bytes[0] !== RESPONSE_MAGIC[0] || bytes[1] !== RESPONSE_MAGIC[1]) {
@@ -82,11 +92,16 @@ export function decodePacket(bytes: Uint8Array): ResponsePacket {
     throw new InstaxError('invalid-packet', `Checksum mismatch on ${toHex(bytes)}`)
   }
 
+  // The body sits between the status byte and the checksum. It is empty for
+  // print opcodes, so neither the sub-command nor the payload can be read at a
+  // fixed offset.
+  const body = bytes.subarray(7, bytes.length - 1)
+
   return {
     opcode: ((bytes[4] as number) << 8) | (bytes[5] as number),
     status: bytes[6] as number,
-    command: bytes[7] as number,
-    payload: bytes.slice(8, bytes.length - 1),
+    command: body.length > 0 ? (body[0] as number) : 0,
+    payload: body.slice(1),
   }
 }
 

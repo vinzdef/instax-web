@@ -36,6 +36,7 @@ export {
   toHex,
   uint32be,
 } from './protocol.js'
+export { RESPONSE_OVERHEAD } from './protocol.js'
 export type { ResponsePacket } from './protocol.js'
 
 export {
