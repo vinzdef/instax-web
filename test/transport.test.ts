@@ -134,6 +134,42 @@ describe('write', () => {
     expect(response).toMatchObject({ opcode: Opcode.PRINT_IMAGE, status: 0 })
   })
 
+  it('ignores a response for a different opcode and waits for its own', async () => {
+    const { transport, characteristic } = setup({ ackTimeout: 200 })
+    await transport.connect()
+
+    characteristic.onWrite = () => [
+      // Late reply to an earlier command that was sent without awaiting one.
+      buildResponse(Opcode.PRINT_IMAGE_DOWNLOAD_CANCEL, 0),
+      buildResponse(Opcode.PRINT_IMAGE_DOWNLOAD_START, 0),
+    ]
+
+    const response = await transport.write(encodePacket(Opcode.PRINT_IMAGE_DOWNLOAD_START), true)
+    expect(response).toMatchObject({ opcode: Opcode.PRINT_IMAGE_DOWNLOAD_START })
+  })
+
+  it('times out rather than resolving with a reply meant for another command', async () => {
+    const { transport, characteristic } = setup({ ackTimeout: 20 })
+    await transport.connect()
+    characteristic.onWrite = () => [buildResponse(Opcode.PRINT_IMAGE_DOWNLOAD_CANCEL, 0)]
+
+    await expect(
+      transport.write(encodePacket(Opcode.PRINT_IMAGE_DOWNLOAD_START), true),
+    ).rejects.toMatchObject({ code: 'timeout' })
+  })
+
+  it('matches the ack of a fragmented packet to the opcode in its header fragment', async () => {
+    const { transport, characteristic } = setup({ ackTimeout: 200 })
+    await transport.connect()
+
+    const packet = encodePacket(Opcode.PRINT_IMAGE_DOWNLOAD_DATA, new Uint8Array(300))
+    await transport.write(packet.subarray(0, 182), false)
+    characteristic.onWrite = () => [buildResponse(Opcode.PRINT_IMAGE_DOWNLOAD_DATA, 0)]
+
+    const response = await transport.write(packet.subarray(182), true)
+    expect(response).toMatchObject({ opcode: Opcode.PRINT_IMAGE_DOWNLOAD_DATA })
+  })
+
   it('serialises concurrent writes so replies cannot cross', async () => {
     const { transport, characteristic } = setup({ ackTimeout: 200 })
     await transport.connect()

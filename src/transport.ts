@@ -1,5 +1,11 @@
 import { InstaxError } from './errors.js'
-import { decodePacket, looksLikeResponse, toHex, type ResponsePacket } from './protocol.js'
+import {
+  REQUEST_MAGIC,
+  decodePacket,
+  looksLikeResponse,
+  toHex,
+  type ResponsePacket,
+} from './protocol.js'
 
 /** Known GATT services on INSTAX Link printers. The first is the primary one. */
 export const INSTAX_SERVICES: readonly string[] = [
@@ -56,6 +62,8 @@ export interface BleTransportOptions {
 }
 
 interface PendingAck {
+  /** Opcode this ack is waiting on; replies to anything else are not it. */
+  opcode: number | null
   resolve: (packet: ResponsePacket) => void
   reject: (error: unknown) => void
   timer: ReturnType<typeof setTimeout>
@@ -64,9 +72,11 @@ interface PendingAck {
 /**
  * Web Bluetooth transport.
  *
- * Two things matter for correctness here. Writes are serialised through a
+ * Three things matter for correctness here. Writes are serialised through a
  * promise chain, because the printer answers with an unaddressed notification
- * and concurrent commands would race for each other's replies. And
+ * and concurrent commands would race for each other's replies. A pending ack
+ * only accepts a response carrying its own opcode, so a late reply to an
+ * unacknowledged command cannot be taken for the answer to this one. And
  * notifications stay subscribed for the lifetime of the connection rather than
  * being started and stopped per command, which is both slow and lossy.
  */
@@ -84,6 +94,12 @@ export class BleTransport implements Transport {
   #notifyCharacteristic: BluetoothRemoteGATTCharacteristic | null = null
 
   #pending: PendingAck | null = null
+  /**
+   * Opcode of the packet being written. Only the first fragment carries the
+   * header, and writes are serialised, so this stays valid until the next
+   * packet starts.
+   */
+  #outgoingOpcode: number | null = null
   /** Reassembly buffer for responses split across notifications. */
   #inbound: number[] = []
   /** Tail of the write queue; every write chains onto it. */
@@ -222,6 +238,9 @@ export class BleTransport implements Transport {
 
     this.#log('tx', toHex(bytes))
 
+    const opcode = requestOpcode(bytes)
+    if (opcode !== null) this.#outgoingOpcode = opcode
+
     let ack: Promise<ResponsePacket> | null = null
     if (awaitAck) {
       // Register before writing: the reply can land before `writeValue` resolves.
@@ -233,7 +252,7 @@ export class BleTransport implements Transport {
             new InstaxError('timeout', `Printer did not acknowledge within ${timeoutMs}ms.`),
           )
         }, timeoutMs)
-        this.#pending = { resolve, reject, timer }
+        this.#pending = { opcode: this.#outgoingOpcode, resolve, reject, timer }
       })
       // The ack can reject before this function reaches `return ack` — a
       // disconnect or a failed write settles it early. Attach a handler now so
@@ -291,6 +310,13 @@ export class BleTransport implements Transport {
   #settlePending(packet: ResponsePacket | null, error?: unknown): void {
     const pending = this.#pending
     if (!pending) return
+    if (packet && pending.opcode !== null && packet.opcode !== pending.opcode) {
+      // A reply to some earlier command that was sent without waiting for one.
+      // Resolving with it would hand the caller another command's status, so
+      // keep waiting for the real answer.
+      this.#log('info', `ignored 0x${hex16(packet.opcode)} while awaiting 0x${hex16(pending.opcode)}`)
+      return
+    }
     this.#pending = null
     clearTimeout(pending.timer)
     if (packet) pending.resolve(packet)
@@ -304,6 +330,7 @@ export class BleTransport implements Transport {
     this.#notifyCharacteristic = null
     this.#server = null
     this.#inbound = []
+    this.#outgoingOpcode = null
     this.#settlePending(null, new InstaxError('disconnected', 'The printer disconnected.'))
 
     if (wasConnected) {
@@ -316,4 +343,14 @@ export class BleTransport implements Transport {
 function describe(error: unknown): string {
   if (error instanceof Error) return error.message
   return String(error)
+}
+
+/** Opcode of a command packet, or `null` for a fragment that carries no header. */
+function requestOpcode(bytes: Uint8Array): number | null {
+  if (bytes.length < 6 || bytes[0] !== REQUEST_MAGIC[0] || bytes[1] !== REQUEST_MAGIC[1]) return null
+  return ((bytes[4] as number) << 8) | (bytes[5] as number)
+}
+
+function hex16(value: number): string {
+  return value.toString(16).padStart(4, '0')
 }
