@@ -18,7 +18,6 @@ const infoBattery = el<HTMLElement>('info-battery')
 const infoSize = el<HTMLElement>('info-size')
 const infoModel = el<HTMLElement>('info-model')
 const infoSerial = el<HTMLElement>('info-serial')
-const settleInput = el<HTMLInputElement>('settle')
 const orientationSelect = el<HTMLSelectElement>('orientation')
 
 let printer: InstaxPrinter | null = null
@@ -51,7 +50,6 @@ connectButton.addEventListener('click', async () => {
   connectButton.disabled = true
   try {
     printer = await InstaxPrinter.request({
-      settleDelay: Number(settleInput.value) || 0,
       logger: (direction, message) => log(`${direction} ${message}`),
     })
 

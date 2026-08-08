@@ -11,7 +11,6 @@ async function connected(fake = new FakePrinter(), options = {}) {
     transport: fake,
     fragmentDelay: 0,
     ejectDelay: 0,
-    settleDelay: 0,
     ...options,
   })
   await printer.connect()
