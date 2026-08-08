@@ -11,6 +11,13 @@ const canvas = el<HTMLCanvasElement>('preview')
 const progressBar = el<HTMLProgressElement>('progress')
 const statusText = el<HTMLSpanElement>('status')
 const logOutput = el<HTMLPreElement>('log')
+const infoPanel = el<HTMLElement>('info')
+const infoFilm = el<HTMLElement>('info-film')
+const infoShots = el<HTMLElement>('info-shots')
+const infoBattery = el<HTMLElement>('info-battery')
+const infoSize = el<HTMLElement>('info-size')
+const infoModel = el<HTMLElement>('info-model')
+const infoSerial = el<HTMLElement>('info-serial')
 
 let printer: InstaxPrinter | null = null
 let variant: FilmVariant = 'mini'
@@ -36,12 +43,21 @@ connectButton.addEventListener('click', async () => {
   try {
     printer = await InstaxPrinter.request({ logger: (direction, message) => log(`${direction} ${message}`) })
 
+    printer.on('status', (status) => {
+      infoPanel.hidden = false
+      infoFilm.textContent = status.film ?? 'unknown'
+      infoShots.textContent = String(status.shotsRemaining)
+      infoBattery.textContent = `${status.battery.level}%${status.battery.charging ? ' ⚡' : ''}`
+      infoSize.textContent = `${status.image.width}×${status.image.height}`
+    })
+
     printer.on('progress', ({ phase, ratio }) => {
       progressBar.value = ratio
       statusText.textContent = `${phase} ${Math.round(ratio * 100)}%`
     })
     printer.on('disconnect', () => {
       statusText.textContent = 'disconnected'
+      infoPanel.hidden = true
       connectButton.textContent = 'Connect printer'
       printButton.disabled = true
       ejectButton.disabled = true
@@ -49,8 +65,14 @@ connectButton.addEventListener('click', async () => {
 
     const status = await printer.getStatus()
     variant = status.film ?? 'mini'
-    statusText.textContent = `${variant} · ${status.battery.level}%${status.battery.charging ? ' charging' : ''} · ${status.shotsRemaining} left`
+    statusText.textContent = 'ready'
     connectButton.textContent = 'Disconnect'
+
+    // Identity never changes while connected, so read it once.
+    const identity = await printer.getIdentity()
+    infoModel.textContent = identity.printerTypeId ?? '—'
+    infoSerial.textContent = identity.serialNumber ?? '—'
+    log(`${identity.company ?? '?'} ${identity.printerTypeId ?? '?'} · ${identity.serialNumber ?? '?'}`)
     ejectButton.disabled = false
     await render()
   } catch (error) {
@@ -89,12 +111,14 @@ printButton.addEventListener('click', async () => {
   try {
     await printer.print(jpeg, { variant, signal: controller.signal })
     log('printed')
+    statusText.textContent = 'ready'
   } catch (error) {
     log(isInstaxError(error, 'aborted') ? 'cancelled' : `error: ${String(error)}`)
   } finally {
     printButton.disabled = false
     cancelButton.disabled = true
     progressBar.value = 0
+    await refreshStatus()
   }
 })
 
@@ -116,5 +140,16 @@ ejectButton.addEventListener('click', async () => {
     log(`error: ${String(error)}`)
   } finally {
     ejectButton.disabled = !printer.connected
+    await refreshStatus()
   }
 })
+
+/** Re-reads the printer so the counter reflects shots just consumed. */
+async function refreshStatus() {
+  if (!printer?.connected) return
+  try {
+    await printer.getStatus()
+  } catch (error) {
+    log(`status refresh failed: ${String(error)}`)
+  }
+}
