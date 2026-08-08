@@ -5,6 +5,7 @@ const el = <T extends HTMLElement>(id: string) => document.getElementById(id) as
 const connectButton = el<HTMLButtonElement>('connect')
 const printButton = el<HTMLButtonElement>('print')
 const cancelButton = el<HTMLButtonElement>('cancel')
+const ejectButton = el<HTMLButtonElement>('eject')
 const fileInput = el<HTMLInputElement>('file')
 const canvas = el<HTMLCanvasElement>('preview')
 const progressBar = el<HTMLProgressElement>('progress')
@@ -43,12 +44,14 @@ connectButton.addEventListener('click', async () => {
       statusText.textContent = 'disconnected'
       connectButton.textContent = 'Connect printer'
       printButton.disabled = true
+      ejectButton.disabled = true
     })
 
     const status = await printer.getStatus()
     variant = status.film ?? 'mini'
     statusText.textContent = `${variant} · ${status.battery.level}%${status.battery.charging ? ' charging' : ''} · ${status.shotsRemaining} left`
     connectButton.textContent = 'Disconnect'
+    ejectButton.disabled = false
     await render()
   } catch (error) {
     if (isInstaxError(error, 'cancelled')) log('chooser dismissed')
@@ -96,3 +99,22 @@ printButton.addEventListener('click', async () => {
 })
 
 cancelButton.addEventListener('click', () => controller?.abort())
+
+ejectButton.addEventListener('click', async () => {
+  if (!printer) return
+  // Irreversible and it costs a shot when the cover is already out, so make it
+  // a deliberate choice rather than a stray click.
+  if (!confirm('Eject the film cover?\n\nThis ejects one sheet. If the cover is already out, it wastes a photo.')) {
+    return
+  }
+
+  ejectButton.disabled = true
+  try {
+    await printer.ejectFilmCover()
+    log('cover ejected')
+  } catch (error) {
+    log(`error: ${String(error)}`)
+  } finally {
+    ejectButton.disabled = !printer.connected
+  }
+})
