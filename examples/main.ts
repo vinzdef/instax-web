@@ -26,8 +26,15 @@ let variant: FilmVariant = 'mini'
 let jpeg: Uint8Array | null = null
 let controller: AbortController | null = null
 
+const started = performance.now()
+
 function log(message: string) {
-  logOutput.textContent = `${message}\n${logOutput.textContent}`.split('\n').slice(0, 200).join('\n')
+  // Elapsed ms, so gaps between commands are readable straight off the log.
+  const stamp = ((performance.now() - started) / 1000).toFixed(3).padStart(8)
+  logOutput.textContent = `${stamp}  ${message}\n${logOutput.textContent}`
+    .split('\n')
+    .slice(0, 200)
+    .join('\n')
 }
 
 if (!InstaxPrinter.isSupported()) {
