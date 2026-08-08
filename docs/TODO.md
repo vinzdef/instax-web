@@ -54,8 +54,3 @@ square (1808 vs 900) and is unverified.
 
 Repo is local-only. Not on GitHub, not on npm.
 
-## Fix README drift
-
-Says "89 unit tests" (now 94). `ejectFilmCover()` is missing from the API
-table. `ejectDelay` is documented but `settleDelay` was removed — check nothing
-else references it.

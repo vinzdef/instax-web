@@ -76,6 +76,7 @@ Codes: `unsupported`, `cancelled`, `disconnected`, `not-connected`, `timeout`, `
 | `printer.print(image, options?)` | Upload and print. `{ copies, variant, signal, onProgress }` |
 | `printer.upload(image, options?)` / `printer.printLoaded(copies?)` | Same, split in two |
 | `printer.setLed(colors, options?)` | Ring LED colour or animation |
+| `printer.ejectFilmCover()` | Eject a fresh pack's cover sheet. Ejects a real sheet — see below |
 | `printer.shutdown()` / `printer.disconnect()` | |
 | `printer.on(event, listener)` | `connect`, `disconnect`, `progress`, `status`. Returns an unsubscribe |
 | `prepareImage(input, options)` | `{ variant, fit, crop, rotate, background, maxBytes }` → JPEG bytes |
@@ -90,6 +91,10 @@ Needs [Web Bluetooth](https://developer.mozilla.org/en-US/docs/Web/API/Web_Bluet
 
 ## Notes
 
+- A freshly loaded pack has a black cover sheet on top. Until it is out, `print`
+  fails with `printer-error` and status `0xb2`. Call `ejectFilmCover()` once —
+  but only then, since it ejects a sheet and burns a real shot if the cover is
+  already gone. The cover does not decrement the shot counter.
 - Only one image is held by the printer at a time; `print` uploads then prints.
 - There is no "ejection finished" notification in the protocol. `print` waits a fixed 15 s per copy — tune with `ejectDelay`.
 - A refused transfer is retried with a slower fragment cadence before failing.
@@ -99,7 +104,7 @@ Needs [Web Bluetooth](https://developer.mozilla.org/en-US/docs/Web/API/Web_Bluet
 
 ```bash
 npm install
-npm test          # 89 unit tests against a fake printer, no hardware needed
+npm test          # 94 unit tests against a fake printer, no hardware needed
 npm run typecheck
 npm run build
 npm run example   # demo app at localhost:5174, needs a real printer
