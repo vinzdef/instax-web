@@ -84,12 +84,21 @@ connectButton.addEventListener('click', async () => {
     statusText.textContent = 'ready'
     connectButton.textContent = 'Disconnect'
 
-    // Identity never changes while connected, so read it once.
-    const identity = await printer.getIdentity()
-    infoModel.textContent = identity.printerTypeId ?? '—'
-    infoSerial.textContent = identity.serialNumber ?? '—'
-    log(`${identity.company ?? '?'} ${identity.printerTypeId ?? '?'} · ${identity.serialNumber ?? '?'}`)
+    // Enable everything the connection unlocks before any optional extra read,
+    // so a failure in one of those cannot leave the controls dead.
     ejectButton.disabled = false
+    for (const control of ledControls) control.disabled = false
+
+    // Identity never changes while connected, so read it once. It is cosmetic.
+    try {
+      const identity = await printer.getIdentity()
+      infoModel.textContent = identity.printerTypeId ?? '—'
+      infoSerial.textContent = identity.serialNumber ?? '—'
+      log(`${identity.company ?? '?'} ${identity.printerTypeId ?? '?'} · ${identity.serialNumber ?? '?'}`)
+    } catch (error) {
+      log(`identity read failed: ${String(error)}`)
+    }
+
     await render()
   } catch (error) {
     if (isInstaxError(error, 'cancelled')) log('chooser dismissed')
