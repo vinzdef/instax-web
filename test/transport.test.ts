@@ -50,6 +50,46 @@ describe('connect', () => {
     expect(transport.connected).toBe(false)
   })
 
+  it('closes the link when the attach fails after the server is up', async () => {
+    const { transport, device } = setup({
+      characteristics: [new FakeCharacteristic({ notify: false })],
+    })
+    await expect(transport.connect()).rejects.toMatchObject({ code: 'disconnected' })
+
+    // A link left open with no reference to it can never be closed, and the
+    // next attempt finds a device that is already connected.
+    expect(device.gatt.connected).toBe(false)
+  })
+
+  it('closes the link when subscribing fails at the end of the attach', async () => {
+    const characteristic = new FakeCharacteristic()
+    characteristic.notifyError = new DOMException('GATT operation failed', 'NetworkError')
+    const { transport, device } = setup({ characteristics: [characteristic] })
+
+    await expect(transport.connect()).rejects.toMatchObject({ code: 'disconnected' })
+    expect(device.gatt.connected).toBe(false)
+  })
+
+  it('leaves no listener on the device once an attempt is over', async () => {
+    // Chrome hands back the same BluetoothDevice object for a given device, so
+    // listeners from dead transports pile up on it and fire on later drops.
+    const { transport, device } = setup()
+    await transport.connect()
+    expect(device.listenerCount('gattserverdisconnected')).toBe(1)
+
+    await transport.disconnect()
+    expect(device.listenerCount('gattserverdisconnected')).toBe(0)
+  })
+
+  it('leaves no listener on the device when the attach fails', async () => {
+    const { transport, device } = setup({
+      characteristics: [new FakeCharacteristic({ notify: false })],
+    })
+    await expect(transport.connect()).rejects.toMatchObject({ code: 'disconnected' })
+
+    expect(device.listenerCount('gattserverdisconnected')).toBe(0)
+  })
+
   it('picks the writable and the notifying characteristic out of several', async () => {
     const readOnly = new FakeCharacteristic({ write: false, writeWithoutResponse: false, notify: false })
     const writer = new FakeCharacteristic({ notify: false })
@@ -227,6 +267,26 @@ describe('disconnect', () => {
     expect(transport.connected).toBe(false)
     expect(characteristic.notifying).toBe(false)
     expect(onDisconnect).toHaveBeenCalledTimes(1)
+  })
+
+  it('still answers with the device name once disconnected', async () => {
+    const { transport } = setup()
+    await transport.connect()
+    await transport.disconnect()
+
+    expect(transport.name).toBe('INSTAX-1234')
+  })
+
+  it('stops taking notifications from a characteristic it has let go', async () => {
+    const { transport, characteristic } = setup()
+    await transport.connect()
+    await transport.disconnect()
+
+    // A late notification must not reach a transport that is done with it.
+    expect(() => characteristic.notify(buildResponse(Opcode.PRINT_IMAGE, 0))).not.toThrow()
+    await expect(transport.write(encodePacket(Opcode.PRINT_IMAGE), true)).rejects.toMatchObject({
+      code: 'not-connected',
+    })
   })
 
   it('fires onDisconnect when the link drops on its own', async () => {

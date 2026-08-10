@@ -22,6 +22,8 @@ export class FakeCharacteristic extends EventTarget {
   writeDelay = 0
   /** Set to fail the next write. */
   writeError: Error | null = null
+  /** Set to fail subscription, the way a link that drops mid-attach does. */
+  notifyError: Error | null = null
 
   constructor(options: FakeCharacteristicOptions = {}) {
     super()
@@ -33,6 +35,7 @@ export class FakeCharacteristic extends EventTarget {
   }
 
   async startNotifications(): Promise<FakeCharacteristic> {
+    if (this.notifyError) throw this.notifyError
     this.notifying = true
     return this
   }
@@ -78,10 +81,12 @@ export class FakeCharacteristic extends EventTarget {
 export class FakeDevice extends EventTarget {
   readonly gatt: { connected: boolean; connect: () => Promise<FakeServer> }
   readonly #server: FakeServer
+  /** Live listeners per event type. A leak shows up here and nowhere else. */
+  readonly #listeners = new Map<string, Set<EventListenerOrEventListenerObject>>()
 
   constructor(
     public readonly name: string,
-    characteristics: FakeCharacteristic[],
+    private readonly characteristics: FakeCharacteristic[],
     services: readonly string[] = INSTAX_SERVICES,
   ) {
     super()
@@ -96,10 +101,38 @@ export class FakeDevice extends EventTarget {
     }
   }
 
+  override addEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | AddEventListenerOptions,
+  ): void {
+    if (listener) {
+      const set = this.#listeners.get(type) ?? new Set()
+      set.add(listener)
+      this.#listeners.set(type, set)
+    }
+    super.addEventListener(type, listener, options)
+  }
+
+  override removeEventListener(
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | EventListenerOptions,
+  ): void {
+    if (listener) this.#listeners.get(type)?.delete(listener)
+    super.removeEventListener(type, listener, options)
+  }
+
+  listenerCount(type: string): number {
+    return this.#listeners.get(type)?.size ?? 0
+  }
+
   /** Simulates the link dropping out from under the transport. */
   dropLink(): void {
     this.gatt.connected = false
     this.#server.connected = false
+    // Losing the link ends every subscription with it, whoever asked for it.
+    for (const characteristic of this.characteristics) characteristic.notifying = false
     this.dispatchEvent(new Event('gattserverdisconnected'))
   }
 }

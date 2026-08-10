@@ -196,23 +196,7 @@ export class BleTransport implements Transport {
   }
 
   async disconnect(): Promise<void> {
-    const notify = this.#notifyCharacteristic
-    const server = this.#server
-    // Drop local state first so an in-flight write fails fast rather than
-    // hanging on a link that is going away.
     this.#teardown()
-
-    try {
-      notify?.removeEventListener('characteristicvaluechanged', this.#onValueChanged)
-      if (notify) await notify.stopNotifications()
-    } catch {
-      // The characteristic is already gone; nothing to unsubscribe from.
-    }
-    try {
-      server?.disconnect()
-    } catch {
-      // Already disconnected.
-    }
   }
 
   write(bytes: Uint8Array, awaitAck: boolean, timeoutMs?: number): Promise<ResponsePacket | null> {
@@ -323,14 +307,41 @@ export class BleTransport implements Transport {
     else pending.reject(error ?? new InstaxError('disconnected', 'Connection closed.'))
   }
 
-  /** Clears local state and fails any in-flight request. */
+  /**
+   * The single place the transport unhooks: drops every listener, closes the
+   * link, clears local state and fails any in-flight request. Everything that
+   * abandons a connection goes through here, so a half-built one cannot leave
+   * the GATT link open with nothing left holding a reference to it. Safe to
+   * call more than once, and safe to call from the disconnect listener it
+   * removes.
+   */
   #teardown(): void {
     const wasConnected = this.#writeCharacteristic !== null
+    const server = this.#server
+
+    // Unhook before closing: the disconnect below re-enters this listener
+    // otherwise, and the device object outlives the transport, so a listener
+    // left behind fires on some later connection's drop.
+    this.#device?.removeEventListener('gattserverdisconnected', this.#onGattDisconnected)
+    this.#notifyCharacteristic?.removeEventListener(
+      'characteristicvaluechanged',
+      this.#onValueChanged,
+    )
+
+    // Cleared before the link is closed so an in-flight write fails fast rather
+    // than hanging on a connection that is going away.
     this.#writeCharacteristic = null
     this.#notifyCharacteristic = null
     this.#server = null
     this.#inbound = []
     this.#outgoingOpcode = null
+
+    try {
+      server?.disconnect()
+    } catch {
+      // Already disconnected.
+    }
+
     this.#settlePending(null, new InstaxError('disconnected', 'The printer disconnected.'))
 
     if (wasConnected) {
