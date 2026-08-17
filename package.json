@@ -1,6 +1,6 @@
 {
   "name": "instax-web",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Print to a Fujifilm INSTAX Link printer from the browser over Web Bluetooth.",
   "keywords": [
     "instax",
