@@ -20,6 +20,10 @@
   },
   "bugs": "https://github.com/vinzdef/instax-web/issues",
   "homepage": "https://github.com/vinzdef/instax-web#readme",
+  "funding": [
+    "https://github.com/sponsors/vinzdef",
+    "https://ko-fi.com/vinzdef"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {

@@ -110,6 +110,10 @@ npm run build
 npm run example   # demo app at localhost:5174, needs a real printer
 ```
 
+## Support
+
+If instax-web helps you, consider [donating on Ko-fi](https://ko-fi.com/vinzdef) or [sponsoring on GitHub](https://github.com/sponsors/vinzdef).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
